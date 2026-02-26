@@ -1,0 +1,25 @@
+{
+  "name": "jwt-rbac-docker-starter",
+  "version": "1.0.0",
+  "description": "Production-ready JWT auth starter (access + refresh tokens) with RBAC, built using Node.js, Express, PostgreSQL and Docker.",
+  "main": "src/app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ponton1/jwt-rbac-docker-starter.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/ponton1/jwt-rbac-docker-starter/issues"
+  },
+  "homepage": "https://github.com/ponton1/jwt-rbac-docker-starter#readme",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
