@@ -1,16 +1,33 @@
 const express = require('express');
 
-const app = express();
-const PORT = 3000;
+const errorHandler = require('./middlewares/errorHandler');
+const authRoutes = require('./modules/auth/auth.routes');
+const usersRoutes = require('./modules/users/users.routes');
+const db = require('./config/db');
 
+const app = express();
 app.use(express.json());
 
-app.get('/', (req, res) => {
-  res.json({
-    message: 'JWT RBAC Docker Starter API running 🚀'
-  });
+// health
+app.get('/health', (req, res) => {
+  res.json({ ok: true });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+// db health (ANTES del error handler)
+app.get('/db-health', async (req, res, next) => {
+  try {
+    const result = await db.query('SELECT NOW() as now');
+    return res.json({ ok: true, dbTime: result.rows[0].now });
+  } catch (err) {
+    return next(err);
+  }
 });
+
+// routes
+app.use('/auth', authRoutes);
+app.use('/users', usersRoutes);
+
+// error handler (SIEMPRE al final)
+app.use(errorHandler);
+
+module.exports = app;
