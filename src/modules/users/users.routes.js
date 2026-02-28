@@ -1,6 +1,6 @@
 // src/modules/users/users.routes.js
 const express = require('express');
-const { requireAuth, authorize } = require('../../middlewares/auth');
+const { requireAuth, requireRole } = require('../../middlewares/auth');
 
 const router = express.Router();
 
@@ -13,7 +13,7 @@ router.get('/', requireAuth, (req, res) => {
 });
 
 // Ejemplo RBAC: solo admin
-router.get('/admin-only', requireAuth, authorize(['admin']), (req, res) => {
+router.get('/admin-only', requireAuth, requireRole('admin'), (req, res) => {
   return res.json({ ok: true, message: 'Admin access granted' });
 });
 

@@ -32,43 +32,48 @@ async function login(req, res, next) {
 async function refresh(req, res, next) {
   try {
     const { refreshToken } = req.body;
-    const tokens = authService.refresh(refreshToken);
 
-    res.json({
+    // ✅ FALTABA await
+    const tokens = await authService.refresh(refreshToken);
+
+    return res.json({
       success: true,
       data: { tokens },
     });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 }
 
 async function logout(req, res, next) {
   try {
     const { refreshToken } = req.body;
-    authService.logout(refreshToken);
 
-    res.json({
+    // ✅ FALTABA await
+    const result = await authService.logout(refreshToken);
+
+    return res.json({
       success: true,
-      data: { message: 'Logged out successfully' },
+      data: result, // { message: 'Logged out successfully' }
     });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 }
 
-// ✅ NUEVO: logout-all usando req.user
+// ✅ logout-all usando req.user
+
 async function logoutAll(req, res, next) {
   try {
-    // req.user lo setea requireAuth
-    authService.logoutAll(req.user.sub);
+    // ✅ FALTABA await
+    const result = await authService.logoutAll(req.user.sub);
 
-    res.json({
+    return res.json({
       success: true,
-      data: { message: 'Logged out from all sessions' },
+      data: result, // { message: 'Logged out from all sessions' }
     });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 }
 

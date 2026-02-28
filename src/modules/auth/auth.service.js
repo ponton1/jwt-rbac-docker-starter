@@ -3,9 +3,14 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
-// In-memory stores (temporal). Luego se reemplaza por DB sin tocar routes/controllers.
-const usersByEmail = new Map(); // email -> user
-const refreshTokens = new Map(); // refreshToken -> { sub, email, role, tokenVersion }
+const usersRepo = require('../users/users.repository');
+const authRepo = require('./auth.repository');
+
+// Mantengo estas Maps exportadas solo por compatibilidad (ya no se usan).
+// Puedes borrarlas después si confirmas que nadie las importa.
+const usersByEmail = new Map();
+const refreshTokens = new Map();
+
 function signAccessToken(payload) {
   return jwt.sign(payload, process.env.JWT_ACCESS_SECRET, {
     expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
@@ -18,27 +23,22 @@ function signRefreshToken(payload) {
   });
 }
 
-function sanitizeUser(user) {
-  const { passwordHash: _passwordHash, ...safe } = user;
-  return safe;
-}
-
 function createError(status, message) {
   const err = new Error(message);
   err.status = status;
   return err;
 }
 
-function cryptoId() {
-  try {
-    return crypto.randomUUID();
-  } catch {
-    return `u_${Math.random().toString(16).slice(2)}_${Date.now()}`;
-  }
+// hash estable para guardar refresh token en DB (no guardamos el token plano)
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-function findUserById(userId) {
-  return Array.from(usersByEmail.values()).find((u) => u.id === userId);
+function sanitizeUserDb(userRow) {
+  if (!userRow) return null;
+  // En DB se llama password_hash
+  const { password_hash: _password_hash, ...safe } = userRow;
+  return safe;
 }
 
 async function register({ email, password, role = 'user' }) {
@@ -49,38 +49,44 @@ async function register({ email, password, role = 'user' }) {
   if (!password || String(password).length < 6) {
     throw createError(400, 'Password must be at least 6 characters');
   }
-  if (usersByEmail.has(normalizedEmail)) {
-    throw createError(409, 'Email already registered');
-  }
+
+  const existing = await usersRepo.findByEmail(normalizedEmail);
+  if (existing) throw createError(409, 'Email already registered');
 
   const passwordHash = await bcrypt.hash(password, 10);
 
-  const user = {
-    id: cryptoId(),
+  // ✅ DB: crear usuario
+  await usersRepo.createUser({
     email: normalizedEmail,
-    role,
     passwordHash,
-    tokenVersion: 1,
-    createdAt: new Date().toISOString(),
-  };
+    role,
+  });
 
-  usersByEmail.set(normalizedEmail, user);
+  // Necesitamos el user completo para token payload (incluye token_version)
+  const user = await usersRepo.findByEmail(normalizedEmail);
+  if (!user) throw createError(500, 'User creation failed');
 
   const tokenPayload = {
     sub: user.id,
     email: user.email,
     role: user.role,
-    tokenVersion: user.tokenVersion,
+    tokenVersion: user.token_version,
   };
 
   const accessToken = signAccessToken(tokenPayload);
   const refreshToken = signRefreshToken(tokenPayload);
 
-  // Guardar refresh token (para poder revocar/rotar después)
-  refreshTokens.set(refreshToken, tokenPayload);
+  // ✅ DB: guardar refresh token hasheado
+  const decodedRefresh = jwt.decode(refreshToken); // { iat, exp, ... }
+  const expiresAt = new Date(decodedRefresh.exp * 1000);
+  await authRepo.createRefreshToken({
+    userId: user.id,
+    tokenHash: hashToken(refreshToken),
+    expiresAt,
+  });
 
   return {
-    user: sanitizeUser(user),
+    user: sanitizeUserDb(user),
     tokens: { accessToken, refreshToken },
   };
 }
@@ -92,44 +98,39 @@ async function login({ email, password }) {
   if (!normalizedEmail) throw createError(400, 'Email is required');
   if (!password) throw createError(400, 'Password is required');
 
-  const user = usersByEmail.get(normalizedEmail);
+  const user = await usersRepo.findByEmail(normalizedEmail);
   if (!user) throw createError(401, 'Invalid credentials');
 
-  const ok = await bcrypt.compare(password, user.passwordHash);
+  const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) throw createError(401, 'Invalid credentials');
 
   const tokenPayload = {
     sub: user.id,
     email: user.email,
     role: user.role,
-    tokenVersion: user.tokenVersion,
+    tokenVersion: user.token_version,
   };
 
   const accessToken = signAccessToken(tokenPayload);
   const refreshToken = signRefreshToken(tokenPayload);
 
-  refreshTokens.set(refreshToken, tokenPayload);
+  // ✅ DB: guardar refresh token hasheado
+  const decodedRefresh = jwt.decode(refreshToken);
+  const expiresAt = new Date(decodedRefresh.exp * 1000);
+  await authRepo.createRefreshToken({
+    userId: user.id,
+    tokenHash: hashToken(refreshToken),
+    expiresAt,
+  });
 
   return {
-    user: sanitizeUser(user),
+    user: sanitizeUserDb(user),
     tokens: { accessToken, refreshToken },
   };
 }
 
-function verifyRefreshToken(refreshToken) {
-  if (!refreshToken) throw createError(401, 'Refresh token required');
-
-  const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-
-  if (!refreshTokens.has(refreshToken)) {
-    throw createError(401, 'Refresh token revoked or unknown');
-  }
-
-  return decoded; // { sub, email, role, tokenVersion, iat, exp }
-}
-
-// ✅ Refresh con rotación + ✅ valida tokenVersion contra el user actual
-function refresh(refreshToken) {
+// ✅ Verifica firma + existencia en DB (revocable)
+async function verifyRefreshToken(refreshToken) {
   if (!refreshToken) throw createError(401, 'Refresh token required');
 
   let decoded;
@@ -139,39 +140,82 @@ function refresh(refreshToken) {
     throw createError(401, 'Invalid refresh token');
   }
 
-  // Debe existir en store (revocable)
-  const stored = refreshTokens.get(refreshToken);
-  if (!stored) {
+  const row = await authRepo.findRefreshTokenByHash(hashToken(refreshToken));
+  if (!row || row.revoked_at) {
     throw createError(401, 'Refresh token revoked or unknown');
   }
 
-  // ✅ VALIDAR tokenVersion usando el user actual
-  const user = findUserById(decoded.sub);
+  // exp del JWT ya fue validado por jwt.verify, pero dejamos esto como defensa extra:
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    throw createError(401, 'Refresh token expired');
+  }
+
+  return decoded;
+}
+
+// ✅ Refresh con rotación + ✅ valida tokenVersion contra el user actual (DB)
+async function refresh(refreshToken) {
+  if (!refreshToken) throw createError(401, 'Refresh token required');
+
+  let decoded;
+  try {
+    decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+  } catch {
+    throw createError(401, 'Invalid refresh token');
+  }
+
+  const tokenHash = hashToken(refreshToken);
+  const stored = await authRepo.findRefreshTokenByHash(tokenHash);
+
+  if (!stored || stored.revoked_at) {
+    throw createError(401, 'Refresh token revoked or unknown');
+  }
+
+  if (new Date(stored.expires_at).getTime() < Date.now()) {
+    throw createError(401, 'Refresh token expired');
+  }
+
+  // ✅ user actual desde DB
+  const user = await usersRepo.findById(decoded.sub);
   if (!user) {
-    refreshTokens.delete(refreshToken);
+    // limpieza defensiva: revocar token si el usuario ya no existe
+    await authRepo.revokeRefreshToken({ tokenHash });
     throw createError(401, 'User not found');
   }
 
-  if (decoded.tokenVersion !== user.tokenVersion) {
-    refreshTokens.delete(refreshToken);
+  // ✅ tokenVersion: si cambió, es logout-all o revocación global
+  if (decoded.tokenVersion !== user.token_version) {
+    await authRepo.revokeRefreshToken({ tokenHash });
     throw createError(401, 'Token revoked');
   }
 
-  // ROTACIÓN: invalidar el refresh viejo
-  refreshTokens.delete(refreshToken);
-
-  // ✅ IMPORTANTE: el nuevo token debe usar el tokenVersion ACTUAL del user
+  // ROTACIÓN:
+  // 1) emitir nuevos tokens con tokenVersion actual
   const tokenPayload = {
     sub: user.id,
     email: user.email,
     role: user.role,
-    tokenVersion: user.tokenVersion,
+    tokenVersion: user.token_version,
   };
 
   const newAccessToken = signAccessToken(tokenPayload);
   const newRefreshToken = signRefreshToken(tokenPayload);
 
-  refreshTokens.set(newRefreshToken, tokenPayload);
+  // 2) guardar nuevo refresh en DB
+  const decodedNew = jwt.decode(newRefreshToken);
+  const expiresAt = new Date(decodedNew.exp * 1000);
+
+  const newRow = await authRepo.createRefreshToken({
+    userId: user.id,
+    tokenHash: hashToken(newRefreshToken),
+    expiresAt,
+  });
+
+  // 3) revocar el refresh viejo y marcar replaced_by
+  await authRepo.revokeRefreshToken({
+    tokenHash,
+    replacedBy: newRow.id,
+  });
 
   return {
     accessToken: newAccessToken,
@@ -179,33 +223,29 @@ function refresh(refreshToken) {
   };
 }
 
-function logout(refreshToken) {
-  if (!refreshToken) {
-    throw createError(400, 'Refresh token required');
-  }
+// ✅ Logout: revoca 1 refresh token (DB)
+async function logout(refreshToken) {
+  if (!refreshToken) throw createError(400, 'Refresh token required');
 
-  if (!refreshTokens.has(refreshToken)) {
+  const tokenHash = hashToken(refreshToken);
+  const existing = await authRepo.findRefreshTokenByHash(tokenHash);
+
+  if (!existing || existing.revoked_at) {
     throw createError(401, 'Refresh token already revoked or unknown');
   }
 
-  refreshTokens.delete(refreshToken);
+  await authRepo.revokeRefreshToken({ tokenHash });
 
   return { message: 'Logged out successfully' };
 }
 
-// ✅ logout global: incrementa tokenVersion + limpia refresh tokens del usuario
-function logoutAll(userId) {
-  const user = findUserById(userId);
+// ✅ logout global: incrementa tokenVersion + revoca todos los refresh tokens del usuario
+async function logoutAll(userId) {
+  const user = await usersRepo.findById(userId);
   if (!user) throw createError(404, 'User not found');
 
-  user.tokenVersion = (user.tokenVersion || 1) + 1;
-
-  // eliminar todos los refresh tokens asociados a este user
-  for (const [token, data] of refreshTokens.entries()) {
-    if (data?.sub === userId) {
-      refreshTokens.delete(token);
-    }
-  }
+  await usersRepo.incrementTokenVersion(userId);
+  await authRepo.revokeAllUserRefreshTokens(userId);
 
   return { message: 'Logged out from all sessions' };
 }
@@ -217,6 +257,8 @@ module.exports = {
   refresh,
   logout,
   logoutAll,
+
+  // compat (no usado ya)
   usersByEmail,
   refreshTokens,
 };

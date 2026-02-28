@@ -1,74 +1,54 @@
 // src/middlewares/auth.js
 const jwt = require('jsonwebtoken');
-const { usersByEmail } = require('../modules/auth/auth.service');
+const usersRepo = require('../modules/users/users.repository');
 
-function requireAuth(req, res, next) {
+function createError(status, message) {
+  const err = new Error(message);
+  err.status = status;
+  return err;
+}
+
+async function requireAuth(req, res, next) {
   try {
     const header = req.headers.authorization || '';
     const [type, token] = header.split(' ');
 
     if (type !== 'Bearer' || !token) {
-      const err = new Error('Missing or invalid Authorization header');
-      err.status = 401;
-      throw err;
+      throw createError(401, 'Missing or invalid Authorization header');
     }
 
-    const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-    // payload: { sub, email, role, tokenVersion, iat, exp }
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+    } catch {
+      throw createError(401, 'Invalid access token');
+    }
 
-    const normalizedEmail = String(payload.email || '')
-      .trim()
-      .toLowerCase();
-    const user = usersByEmail.get(normalizedEmail);
-
+    // decoded: { sub, email, role, tokenVersion, iat, exp }
+    const user = await usersRepo.findById(decoded.sub);
     if (!user) {
-      const err = new Error('User not found');
-      err.status = 401;
-      throw err;
+      throw createError(401, 'User not found');
     }
 
-    if (typeof payload.tokenVersion !== 'number') {
-      const err = new Error('Token missing tokenVersion');
-      err.status = 401;
-      throw err;
+    // TokenVersion check (logout-all / revocación global)
+    if (decoded.tokenVersion !== user.token_version) {
+      throw createError(401, 'Token revoked');
     }
 
-    if (payload.tokenVersion !== user.tokenVersion) {
-      const err = new Error('Token revoked');
-      err.status = 401;
-      throw err;
-    }
-
-    // ✅ aquí el ajuste
-    req.user = {
-      sub: payload.sub, // <- clave
-      email: payload.email,
-      role: payload.role,
-      tokenVersion: payload.tokenVersion,
-    };
-
+    req.user = decoded;
     return next();
   } catch (err) {
-    err.status = err.status || 401;
     return next(err);
   }
 }
 
-function authorize(allowedRoles = []) {
+function requireRole(...allowedRoles) {
   return (req, res, next) => {
     try {
-      if (!req.user) {
-        const err = new Error('Unauthenticated');
-        err.status = 401;
-        throw err;
+      if (!req.user) throw createError(401, 'Unauthorized');
+      if (!allowedRoles.includes(req.user.role)) {
+        throw createError(403, 'Forbidden');
       }
-
-      if (allowedRoles.length > 0 && !allowedRoles.includes(req.user.role)) {
-        const err = new Error('Forbidden');
-        err.status = 403;
-        throw err;
-      }
-
       return next();
     } catch (err) {
       return next(err);
@@ -76,4 +56,7 @@ function authorize(allowedRoles = []) {
   };
 }
 
-module.exports = { requireAuth, authorize };
+module.exports = {
+  requireAuth,
+  requireRole,
+};
