@@ -1,5 +1,7 @@
 # JWT RBAC Starter – Node.js / Express
 
+![CI](https://github.com/ponton1/jwt-rbac-docker-starter/actions/workflows/ci.yml/badge.svg)
+
 A production-ready, modular authentication API built with Node.js, Express, and
 PostgreSQL.
 
@@ -22,6 +24,29 @@ scalable production environments.
 - Centralized error handling
 - PostgreSQL persistence
 - Code quality enforcement (ESLint + Prettier)
+
+---
+
+---
+
+## Continuous Integration (CI)
+
+This project includes an automated GitHub Actions pipeline.
+
+On every push to main:
+
+- A clean Node.js environment is created
+- PostgreSQL service container is started
+- Dependencies are installed using npm ci
+- Full integration test suite runs
+- Coverage thresholds are validated
+
+This guarantees:
+
+- Deterministic builds
+- Database-backed integration testing
+- Automatic failure detection
+- Code quality enforcement
 
 ---
 
