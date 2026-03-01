@@ -1,6 +1,6 @@
 # JWT RBAC Starter – Node.js / Express
 
-![CI](https://github.com/ponton1/jwt-rbac-docker-starter/actions/workflows/ci.yml/badge.svg)
+[![CI](https://github.com/ponton1/jwt-rbac-docker-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/ponton1/jwt-rbac-docker-starter/actions/workflows/ci.yml)
 
 A production-ready, modular authentication API built with Node.js, Express, and
 PostgreSQL.
