@@ -2,7 +2,7 @@ const js = require('@eslint/js');
 const globals = require('globals');
 const importPlugin = require('eslint-plugin-import');
 const prettierPlugin = require('eslint-plugin-prettier');
-
+const jestPlugin = require('eslint-plugin-jest');
 module.exports = [
   js.configs.recommended,
 
@@ -34,6 +34,27 @@ module.exports = [
     files: ['src/server.js'],
     rules: {
       'no-console': 'off',
+    },
+  },
+
+  {
+    files: ['tests/**/*.test.js'],
+    plugins: {
+      jest: jestPlugin,
+    },
+    languageOptions: {
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterAll: 'readonly',
+        beforeAll: 'readonly',
+        afterEach: 'readonly',
+      },
+    },
+    rules: {
+      'no-undef': 'off',
     },
   },
 ];
