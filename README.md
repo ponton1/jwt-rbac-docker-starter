@@ -85,24 +85,25 @@ refresh_tokens
 
 ## Architecture Overview
 
+```text
 src/
 ├── config/
-│ ├── db.js
-│ └── env.js
+│   ├── db.js
+│   └── env.js
 ├── middlewares/
-│ ├── auth.js
-│ └── errorHandler.js
+│   ├── auth.js
+│   └── errorHandler.js
 ├── modules/
-│ ├── auth/
-│ │ ├── auth.controller.js
-│ │ ├── auth.routes.js
-│ │ ├── auth.service.js
-│ │ └── auth.repository.js
-│ └── users/
-│ ├── users.controller.js
-│ ├── users.routes.js
-│ ├── users.service.js
-│ └── users.repository.js
+│   ├── auth/
+│   │   ├── auth.controller.js
+│   │   ├── auth.routes.js
+│   │   ├── auth.service.js
+│   │   └── auth.repository.js
+│   └── users/
+│       ├── users.controller.js
+│       ├── users.routes.js
+│       ├── users.service.js
+│       └── users.repository.js
 ├── app.js
 └── server.js
 
@@ -248,3 +249,4 @@ Global Logout
 ## License
 
 MIT
+```
