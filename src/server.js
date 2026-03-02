@@ -11,7 +11,7 @@ async function startServer() {
     console.log('✅ Database connected at:', ping.now);
 
     app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
+      console.log(`🔥 Docker DEV MODE ON http://localhost:${PORT}`);
     });
   } catch (error) {
     console.error('❌ Database connection failed:', error);
