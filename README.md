@@ -1,63 +1,107 @@
 # JWT RBAC Starter
 
-## Enterprise-Grade Authentication API -- Node.js / Express / PostgreSQL
+## Enterprise-Grade Authentication API — Node.js / Express / PostgreSQL
 
-[![CI](https://github.com/ponton1/jwt-rbac-docker-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/ponton1/jwt-rbac-docker-starter/actions/workflows/ci.yml)
-
----
-
-## Executive Summary
-
-JWT RBAC Starter is a production-oriented authentication API built with
-Node.js, Express, and PostgreSQL.
-
-It implements secure JWT authentication with access and refresh tokens,
-refresh token rotation (replay protection), immediate global revocation
-via tokenVersion, and Role-Based Access Control (RBAC).
-
-The project is designed as a clean, modular backend foundation aligned
-with enterprise engineering standards, including CI integration,
-automated testing, Dockerized environments, and separation-of-concerns
-architecture.
+![Node](https://img.shields.io/badge/node.js-18+-green)
+![Express](https://img.shields.io/badge/express-framework-lightgrey)
+![PostgreSQL](https://img.shields.io/badge/postgresql-database-blue)
+![Docker](https://img.shields.io/badge/docker-container-blue)
+![CI](https://github.com/ponton1/jwt-rbac-docker-starter/actions/workflows/ci.yml/badge.svg)
 
 ---
 
-## Core Capabilities
+# Live API
 
-### Authentication
+Production demo deployed in the cloud.
 
-- Short-lived JWT Access Tokens
-- Long-lived JWT Refresh Tokens
-- Refresh token rotation with replay protection
-- SHA256 hashing of refresh tokens before persistence
-- Global session invalidation using tokenVersion
-- Single-session logout
-- Multi-session global logout
+Health endpoint:
 
-### Authorization
+https://jwt-rbac-docker-starter.onrender.com/health
 
-- `requireAuth` middleware (JWT validation + tokenVersion
-  verification)
-- `requireRole(roles)` middleware for RBAC enforcement
+Database connectivity test:
 
-### Persistence
-
-- PostgreSQL as primary data store
-- Token rotation tracking using `replaced_by`
-- Immediate revocation support
-- Referential integrity with foreign keys
-
-### Quality & Governance
-
-- Integration testing with Jest + Supertest
-- Dedicated isolated test database (`.env.test`)
-- Coverage thresholds enforced in CI
-- ESLint + Prettier for code consistency
-- Deterministic builds using `npm ci`
+https://jwt-rbac-docker-starter.onrender.com/db-health
 
 ---
 
-## Architecture Overview
+# Executive Summary
+
+JWT RBAC Starter is a production‑oriented authentication API built with
+Node.js, Express and PostgreSQL.
+
+It implements secure authentication using:
+
+• Access Tokens
+• Refresh Tokens
+• Refresh Token Rotation
+• Global session revocation via tokenVersion
+• Role Based Access Control (RBAC)
+
+The project follows clean backend architecture principles and includes:
+
+• Docker environment
+• CI pipeline
+• Automated integration tests
+• Secure token management
+• Modular architecture
+
+This repository is designed to be a **clean backend foundation for SaaS
+applications and microservices**.
+
+---
+
+# Core Capabilities
+
+## Authentication
+
+• Short‑lived JWT Access Tokens
+• Long‑lived JWT Refresh Tokens
+• Refresh Token Rotation (Replay Protection)
+• SHA256 hashing of refresh tokens before database storage
+• Global session invalidation via tokenVersion
+• Single session logout
+• Global logout across all sessions
+
+---
+
+## Authorization
+
+Middleware based authorization:
+
+requireAuth → validates JWT and tokenVersion
+
+requireRole(roles) → enforces RBAC
+
+Example:
+
+Admin routes require role: admin
+
+---
+
+## Persistence Layer
+
+Primary database: PostgreSQL
+
+Features:
+
+• Refresh token rotation tracking via replaced_by
+• Immediate revocation support
+• Referential integrity via foreign keys
+• UUID primary keys
+
+---
+
+## Quality & Governance
+
+• Integration tests using Jest + Supertest
+• Dedicated isolated test database (.env.test)
+• Coverage thresholds enforced in CI
+• ESLint + Prettier for consistent code style
+• Deterministic builds using npm ci
+
+---
+
+# Architecture Overview
 
 ```text
 src/
@@ -82,180 +126,281 @@ src/
 └── server.js
 ```
 
-### Architectural Principles
+---
 
-- Strict separation of concerns (route → controller → service →
-  repository)
-- Stateless JWT-based authentication
-- Token rotation strategy for replay mitigation
-- Version-based global revocation
-- Repository abstraction for database portability
-- Production-oriented modular design
+# Architectural Principles
+
+• Strict separation of concerns
+
+route → controller → service → repository
+
+• Stateless JWT authentication
+
+• Token rotation strategy for replay attack mitigation
+
+• Version‑based global session revocation
+
+• Repository abstraction layer for database portability
+
+• Modular scalable backend design
 
 ---
 
-## Database Schema
+# High Level Architecture
 
-### users
-
-- id (uuid)
-- email (unique)
-- password_hash
-- role
-- token_version
-- created_at
-- updated_at
-
-### refresh_tokens
-
-- id (uuid)
-- user_id (FK → users.id)
-- token_hash (unique, SHA256)
-- expires_at
-- revoked_at
-- replaced_by (self reference)
-- created_at
-
----
-
-## Authentication Flow
-
-1.  User registers or logs in.
-2.  Access + Refresh tokens are issued.
-3.  Refresh token is hashed and stored.
-4.  Refresh requests rotate tokens (old token revoked).
-5.  logout() revokes single refresh token.
-6.  logoutAll() increments tokenVersion and revokes all sessions.
-7.  Access tokens with outdated tokenVersion are invalid immediately.
-
----
-
-## API Endpoints
-
-### Auth
-
-- POST /auth/register
-- POST /auth/login
-- POST /auth/refresh
-- POST /auth/logout
-- POST /auth/logout-all
-
-### RBAC
-
-- GET /users
-- GET /users/admin-only
-
-Admin routes require role: `admin`.
-
----
-
-## Docker Deployment
-
-### Development
-
-```bash
-docker compose up --build
+```text
+Client
+   │
+   ▼
+Express Routes
+   │
+   ▼
+Controllers
+   │
+   ▼
+Services (Business Logic)
+   │
+   ▼
+Repositories
+   │
+   ▼
+PostgreSQL Database
 ```
 
-Health checks: - http://localhost:3000/health -
+---
+
+# Database Schema
+
+## users
+
+id (uuid)
+email (unique)
+password_hash
+role
+token_version
+created_at
+updated_at
+
+---
+
+## refresh_tokens
+
+id (uuid)
+user_id (FK → users.id)
+token_hash (SHA256)
+expires_at
+revoked_at
+replaced_by
+created_at
+
+---
+
+# Authentication Flow
+
+1 User registers or logs in
+
+2 Access Token + Refresh Token issued
+
+3 Refresh token hashed and stored in database
+
+4 Client uses access token for API calls
+
+5 When access token expires:
+
+Client sends refresh token
+
+6 Server rotates refresh token
+
+Old refresh token revoked
+
+New refresh token issued
+
+7 logout() revokes current session
+
+8 logoutAll() increments tokenVersion and revokes all sessions
+
+Access tokens with outdated tokenVersion become invalid immediately
+
+---
+
+# API Endpoints
+
+## Auth
+
+POST /auth/register
+
+POST /auth/login
+
+POST /auth/refresh
+
+POST /auth/logout
+
+POST /auth/logout-all
+
+---
+
+## Users
+
+GET /users
+
+GET /users/admin-only
+
+Admin routes require role: admin
+
+---
+
+# Example API Usage
+
+Register user:
+
+curl -X POST http://localhost:3000/auth/register \
+-H "Content-Type: application/json" \
+-d '{"email":"user@test.com","password":"123456"}'
+
+---
+
+Login:
+
+curl -X POST http://localhost:3000/auth/login \
+-H "Content-Type: application/json" \
+-d '{"email":"user@test.com","password":"123456"}'
+
+---
+
+# Docker Deployment
+
+## Development
+
+docker compose up --build
+
+Health checks:
+
+http://localhost:3000/health
+
 http://localhost:3000/db-health
 
 Stop:
 
-```bash
 docker compose down
-```
 
-Reset DB:
+Reset database:
 
-```bash
 docker compose down -v
-```
 
 ---
 
-### Production
+## Production
 
-```bash
 docker compose -f docker-compose.prod.yml up --build
-```
 
-Production image: - Installs production dependencies only - Uses
-deterministic install (`npm ci --omit=dev --ignore-scripts`) - Optimized
-runtime environment
+Production container:
+
+• Installs production dependencies only
+• Uses deterministic install (npm ci --omit=dev --ignore-scripts)
+• Optimized runtime environment
 
 ---
 
-## Continuous Integration
+# Continuous Integration
 
 On every push or pull request:
 
-- Clean Node environment provisioned
-- PostgreSQL service container started
-- Dependencies installed using `npm ci`
-- Full integration test suite executed
-- Coverage thresholds validated
+1 Clean Node environment created
 
-Ensures: - Deterministic builds - Automated regression prevention -
-Environment consistency - Database-backed testing reliability
+2 PostgreSQL container started
+
+3 Dependencies installed using npm ci
+
+4 Integration tests executed
+
+5 Coverage thresholds validated
+
+CI ensures:
+
+• Deterministic builds
+• Automated regression prevention
+• Environment consistency
+• Database backed testing
 
 ---
 
-## Environment Configuration
+# Environment Configuration
 
-### Development (.env)
+## Development (.env)
 
 PORT=3000
 
 JWT_ACCESS_SECRET=your_access_secret
-JWT_REFRESH_SECRET=your_refresh_secret JWT_ACCESS_EXPIRES_IN=15m
+JWT_REFRESH_SECRET=your_refresh_secret
+
+JWT_ACCESS_EXPIRES_IN=15m
 JWT_REFRESH_EXPIRES_IN=7d
 
-DB_HOST=db DB_PORT=5432 DB_NAME=jwt_rbac_db DB_USER=postgres
+DB_HOST=db
+DB_PORT=5432
+DB_NAME=jwt_rbac_db
+DB_USER=postgres
 DB_PASSWORD=postgres
 
-### Testing (.env.test)
+---
 
-Isolated database configuration recommended (jwt_rbac_test).
+## Testing (.env.test)
+
+Separate database recommended:
+
+jwt_rbac_test
 
 ---
 
-## Security Model
+# Security Model
 
-### Access Token
+## Access Token
 
-- Short-lived
-- Contains sub, role, tokenVersion
-- Invalidated if tokenVersion changes
-
-### Refresh Token
-
-- Long-lived
-- Stored hashed (never plain text)
-- Rotated on every refresh
-- Linked via replaced_by
-- Revoked on logout or global logout
-
-### Global Revocation Strategy
-
-- tokenVersion increment
-- Immediate invalidation of all active sessions
-- All refresh tokens revoked
+• Short lived
+• Contains user id, role and tokenVersion
+• Invalidated when tokenVersion changes
 
 ---
 
-## Production Readiness
+## Refresh Token
 
-This project is designed as a backend foundation suitable for:
-
-- SaaS authentication services
-- Enterprise internal platforms
-- Modular microservice ecosystems
-- CI-driven engineering environments
-- Cloud container deployment (Render, Fly.io, AWS ECS, etc.)
+• Long lived
+• Stored hashed (never plaintext)
+• Rotated on every refresh request
+• Linked via replaced_by
 
 ---
 
-## License
+## Global Revocation Strategy
+
+tokenVersion increment
+
+All refresh tokens revoked
+
+All access tokens become invalid immediately
+
+---
+
+# Production Readiness
+
+This project is suitable as a backend foundation for:
+
+• SaaS authentication services
+• Enterprise internal platforms
+• Microservice architectures
+• CI driven engineering environments
+• Cloud container deployments
+
+Compatible platforms:
+
+Render
+Fly.io
+AWS ECS
+Digital Ocean
+Railway
+
+---
+
+# License
 
 MIT
