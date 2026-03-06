@@ -128,56 +128,6 @@ src/
 
 ---
 
-## System Design
-
-This API follows a layered architecture to ensure clear separation of
-responsibilities and maintainability.
-
-```text
-Client
-   │
-   ▼
-HTTP Requests
-   │
-   ▼
-Express Routes
-   │
-   ▼
-Controllers
-   │
-   ▼
-Services (Business Logic)
-   │
-   ▼
-Repositories (Data Access Layer)
-   │
-   ▼
-PostgreSQL Database
-```
-
----
-
-### Layer Responsibilities
-
-Routes
-Define API endpoints and map them to controllers.
-
-Controllers
-Handle HTTP request/response and delegate business logic.
-
-Services
-Contain core application logic such as authentication flows,
-token rotation, and authorization decisions.
-
-Repositories
-Interact with the database and encapsulate SQL queries.
-
-Database
-PostgreSQL used for persistence, enforcing referential integrity
-and transactional consistency.
-
----
-
 # Architectural Principles
 
 • Strict separation of concerns
@@ -448,6 +398,97 @@ Fly.io
 AWS ECS
 Digital Ocean
 Railway
+
+---
+
+---
+
+# Project Goals
+
+This project was built to demonstrate backend engineering practices used
+in production systems.
+
+Key objectives:
+
+• Implement secure JWT authentication
+• Implement refresh token rotation
+• Implement Role-Based Access Control (RBAC)
+• Demonstrate modular backend architecture
+• Demonstrate integration testing with Jest + Supertest
+• Demonstrate CI pipelines using GitHub Actions
+• Provide reproducible environments using Docker
+• Provide clear API documentation using Swagger (OpenAPI)
+
+---
+
+# High Level Architecture (Visual)
+
+```mermaid
+flowchart TD
+    A[Client / Frontend Application] --> B[Express Routes]
+    B --> C[Controllers]
+    C --> D[Services - Business Logic]
+    D --> E[Repositories - Data Access]
+    E --> F[(PostgreSQL Database)]
+```
+
+---
+
+# Why This Architecture
+
+The project follows a layered architecture to improve scalability and maintainability.
+
+Routes → define HTTP endpoints
+Controllers → manage request/response lifecycle
+Services → contain business logic
+Repositories → isolate database access
+
+Benefits:
+
+• Testability
+• Maintainability
+• Scalability
+• Code clarity
+
+---
+
+# Swagger Documentation
+
+Local documentation:
+
+http://localhost:3000/docs
+
+Production documentation:
+
+https://jwt-rbac-docker-starter.onrender.com/docs
+
+The Swagger UI allows developers to:
+
+• Explore all API endpoints
+• Authenticate using JWT tokens
+• Execute requests directly from the browser
+
+---
+
+# Quick API Test
+
+Register user:
+
+curl -X POST http://localhost:3000/auth/register \
+-H "Content-Type: application/json" \
+-d '{"email":"user@test.com","password":"123456"}'
+
+Login:
+
+curl -X POST http://localhost:3000/auth/login \
+-H "Content-Type: application/json" \
+-d '{"email":"user@test.com","password":"123456"}'
+
+Refresh token:
+
+curl -X POST http://localhost:3000/auth/refresh \
+-H "Content-Type: application/json" \
+-d '{"refreshToken":"your-refresh-token"}'
 
 ---
 
