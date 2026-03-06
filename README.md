@@ -128,6 +128,56 @@ src/
 
 ---
 
+## System Design
+
+This API follows a layered architecture to ensure clear separation of
+responsibilities and maintainability.
+
+```text
+Client
+   │
+   ▼
+HTTP Requests
+   │
+   ▼
+Express Routes
+   │
+   ▼
+Controllers
+   │
+   ▼
+Services (Business Logic)
+   │
+   ▼
+Repositories (Data Access Layer)
+   │
+   ▼
+PostgreSQL Database
+```
+
+---
+
+### Layer Responsibilities
+
+Routes
+Define API endpoints and map them to controllers.
+
+Controllers
+Handle HTTP request/response and delegate business logic.
+
+Services
+Contain core application logic such as authentication flows,
+token rotation, and authorization decisions.
+
+Repositories
+Interact with the database and encapsulate SQL queries.
+
+Database
+PostgreSQL used for persistence, enforcing referential integrity
+and transactional consistency.
+
+---
+
 # Architectural Principles
 
 • Strict separation of concerns
